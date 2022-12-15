@@ -1,0 +1,81 @@
+# Image to use for building the project inside the CI pipeline
+image: node:latest
+
+# Use cache for npm
+cache:
+  paths:
+    # npm cache location
+    - node_modules
+  # Use npm cache based on the branch name (or commit hash if the pipeline is being run for a specific commit)
+  key: $CI_COMMIT_REF_NAME
+
+before_script:
+  - 'export PATH=$PATH:./node_modules/.bin'
+  - 'sh -c "ls -l ./node_modules/.bin || true"'
+
+# Steps that will be executed for a CI job.
+stages:
+  - restore_deps
+  - utest
+  - package
+  - package_main
+#   - deploy
+
+# Download all the dependencies (if not cached already, or if changed)
+restore_deps:
+  stage: restore_deps
+  # Run the following steps during this stage
+  script:
+    - npm i -g @vue/cli-service 
+    - npm install
+  # Only run this pipeline on the following branches: main, test and development
+  # The variable $CI_ORIGIN_SERVER can be changed depending on the origin GitLab instance, to skip duplicate CI jobs when using an upstream repository
+
+# Run all the unit tests
+utest:
+  stage: utest
+  script:
+    - 'npm run test:unit'
+
+
+# Package the application and save artifacts for 1 week
+package:
+  stage: package
+  script:
+    - 'npm run build'
+  # Only run this pipeline on the test and development branch
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "test" || $CI_COMMIT_BRANCH == "development"'
+  # Save the artifacts
+  artifacts:
+    # Use all files under dist/ folder
+    paths:
+      - 'dist/'
+    # Artifacts will be removed after a week
+    expire_in: 1 week
+
+# Package the application and save artifacts for 1 week
+package_main:
+  stage: package_main
+  script:
+    - 'npm run build'
+  # Only run this pipeline on the test and development branch
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  # Save the artifacts
+  artifacts:
+    # Use all files under dist/ folder
+    paths:
+      - 'dist/'
+
+# Deploy the application
+# deploy:
+#   stage: deploy
+#   image: docker:20.10.16
+#   script:
+#     - 'mkdir -p $HOME/.docker'
+#     - 'cat $DOCKER_REGISTRY_CONFIG > $HOME/.docker/config.json'
+#     - 'chmod +x ./publish_production.sh'
+#     - 'sh ./publish_production.sh'
+#   rules:
+#     - if: '$CI_COMMIT_BRANCH == "main"'
